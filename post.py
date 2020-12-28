@@ -32,7 +32,7 @@ def forwardPost(content, nodes, maxCost):
         try:    
             result = requests.post(node+'/challenge/'+content["signature"])
             if result.content != "exists":
-                challengesToSolve[node] = json.loads(result.content)
+                challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
         except:
             print("Could not challenge node " + node)
         print(challengesToSolve)
@@ -45,7 +45,7 @@ def forwardPost(content, nodes, maxCost):
                     if (r.content == "success"):
                         print("Post forwarded successfully to " + challenge)
                     else:
-                        print("Post not forwarded successfully, error code " + r.content)
+                        print("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
                 except:
                     print("could not forward to " + challenge)
             else: 
@@ -82,7 +82,6 @@ def runPostInterface(user, nodes, maxCost):
         if validatePostText(post):
             break
     privkey = ecdsa.SigningKey.from_string(bytes.fromhex(user["secretKey"]), curve=ecdsa.SECP256k1)
-    print(privkey.get_verifying_key())
     content = {
                 "message" : post,
                 "alias" : user["alias"],
