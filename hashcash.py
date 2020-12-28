@@ -10,11 +10,9 @@ def verify_token(problem, soln, length):
 
 def solve_token(problem, length):
     i = 0
-    print(problem)
     while True:
         i+=1
         for soln in map(''.join, itertools.product('0123456789ABCDEF', repeat=i)):
-            print(soln)
             if verify_token(problem, soln, length):
                 return soln
 def generate_token(size):

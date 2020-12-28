@@ -4,6 +4,7 @@ from hashcash import generate_token, solve_token, verify_token, hash
 from post import validatePost, forwardPost, generatePostKeys, runPostInterface
 import configparser
 import click
+from transform import interpretPost
 import json
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -17,6 +18,9 @@ nodes = config['NETWORK']['nodes'].split(",")
 def hashcash_demo():
     token = generate_token(10)
     return str(solve_token(token, cost))
+@app.route('/')
+def main():
+    read()
 @app.route('/challenge/<sig>', methods = ['POST'])
 def getPostChallenge(sig):
     if (sig in posts):
@@ -28,7 +32,7 @@ def getPostChallenge(sig):
                 "token" : hash(secret_key + problem)
            }
 @app.route('/post',methods = ['POST'])
-def post():
+def remotePost():
     content = request.get_json(silent=True)
     problem = content['problem']
     soln = content['soln']
@@ -54,7 +58,13 @@ def genkeys():
 def post():
     runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, forwardCost)
 
+@app.cli.command()
+def read():
+    for post in posts:
+        print("POST ID : " + post)
+        print("ALIAS : " + posts[post]["alias"])
+        print("MESSAGE : " + interpretPost(posts[post]["message"]))
+        print("")
 if __name__ == '__main__': 
-    app.make_shell_context()
     app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
     
