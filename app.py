@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify
 from flask import request
-from Crypto.PublicKey import RSA
 from hashcash import generate_token, solve_token, verify_token, hash
-from post import validatePost, forwardPost
+from post import validatePost, forwardPost, generatePostKeys, runPostInterface
 import configparser
+import click
+import json
 config = configparser.ConfigParser()
 config.read('config.ini')
 app = Flask(__name__)
-key = RSA.generate(2048)
 secret_key = generate_token(20)
 posts = {} 
 cost = int(config['POLICY']['cost'])
@@ -40,9 +40,18 @@ def post():
     if (not validatePost(content, config['POLICY']['maxLength'], None)):
         return "invalid"
     posts[sig] = content
-    forwardPost(content, config['NETWORK']['nodes'].split(","))
+    forwardPost(content, config['NETWORK']['nodes'].split(","), int(config['POLICY']['forwardCost']))
     return "success"
 
+@app.cli.command()
+def genkeys():
+    user = generatePostKeys()
+    open(config['SERVER']['userFile'], "w").write(json.dumps(user))
 
+@app.cli.command()
+def post():
+    runPostInterface()
 if __name__ == '__main__': 
+    app.make_shell_context()
     app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
+    
