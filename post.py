@@ -42,7 +42,7 @@ def forwardPost(content, nodes, maxCost):
                 print(content)
                 try:
                     r = requests.post(node + '/post', json=content)
-                    if (r.content == "success"):
+                    if (r.content.decode('utf-8') == "success"):
                         print("Post forwarded successfully to " + challenge)
                     else:
                         print("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
