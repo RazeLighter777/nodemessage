@@ -2,17 +2,6 @@ import ecdsa
 import json
 import requests
 from hashcash import solve_token
-import configparser
-def test():
-    # SECP256k1 is the Bitcoin elliptic curve
-    sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
-    vk = sk.get_verifying_key()
-    hexstr = sk.to_string().hex()
-    sk2 = ecdsa.SigningKey.from_string(bytes.fromhex(hexstr), curve=ecdsa.SECP256k1)
-    sig = sk.sign(b"message")
-    return sk2.get_verifying_key().verify(sig, b"message") # True
-
-print(str(test()))
 def validatePost(post, maxLen, notories):
     #Validate the signature
     vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(post["key"]), curve=ecdsa.SECP256k1)

@@ -6,28 +6,31 @@ import configparser
 import click
 from transform import interpretPost
 import json
+from apscheduler.schedulers.background import BackgroundScheduler
+
 config = configparser.ConfigParser()
 config.read('config.ini')
 app = Flask(__name__)
+scheduler = BackgroundScheduler()
+
 secret_key = generate_token(20)
 posts = {} 
 cost = int(config['POLICY']['cost'])
 forwardCost = int(config['POLICY']['forwardCost'])
 nodes = config['NETWORK']['nodes'].split(",")
-@app.route('/demo')
-def hashcash_demo():
-    token = generate_token(10)
-    return str(solve_token(token, cost))
+
 @app.route('/read')
 def main():
     showPosts()
     text = "<h>Messages</h>\n"
     for post in posts:
         text += "<p>\n"
-        text += "POST ID : " + posts[post]["signature"] + "\n"
-        text += "ALIAS : " + posts[post]["alias"] + "\n"
-        text += "MESSAGE : " + posts[post]["message"] +"\n"
+        text += "POST ID : " + posts[post]["signature"][0:10] + "<br>"
+        text += "USER ID : " + posts[post]["key"][0:10] + "<br>"
+        text += "ALIAS : " + posts[post]["alias"] + "<br>"
+        text += "MESSAGE : " + posts[post]["message"] +"<br>"
         text += "</p>"
+        text += "<br><br>"
     return text
 
 @app.route('/challenge/<sig>', methods = ['POST'])
@@ -67,8 +70,16 @@ def genkeys():
 def post():
     runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, forwardCost)
 
+def forward():
+    print("Forwarding all posts . . .")
+    for post in posts:
+        forwardPost(post, nodes, forwardCost)
+
+@app.cli.command()
 def showPosts():
     print(posts)
 if __name__ == '__main__': 
+    scheduler.add_job(forward, 'interval', seconds=int(config['POLICY']['forwardInterval']))
+    scheduler.start()
     app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
     
