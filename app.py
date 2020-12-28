@@ -21,6 +21,8 @@ def hashcash_demo():
 @app.route('/')
 def main():
     read()
+    return "good"
+    
 @app.route('/challenge/<sig>', methods = ['POST'])
 def getPostChallenge(sig):
     if (sig in posts):
