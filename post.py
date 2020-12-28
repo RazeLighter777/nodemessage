@@ -29,16 +29,17 @@ def forwardPost(content, nodes, maxCost):
     for node in nodes:
         result = requests.post(node+'/challenge/'+content["signature"])
         if result.content != "exists":
-            challengesToSolve[content["signature"]] = result.content
+            challengesToSolve[node] = result.content
     for challenge in challengesToSolve:
-        if int(challenge["cost"]) <= maxCost:
-            r = requests.post(node, json=content.update(solveChallenge(challenge)))
+        if int(challengesToSolve[challenge]["cost"]) <= maxCost:
+            r = requests.post(node, json=content.update(solveChallenge(challengesToSolve[challenge])))
             if (r.status_code == 200):
-                print("Post forwarded successfully")
+                print("Post forwarded successfully to " + challenge)
             else:
                 print("Post not forwarded successfully, error code " + str(r.status_code))
         else: 
             print("Too lazy to solve challenge! Try upping forwardCost.")
+
 def solveChallenge(challenge):
     cost = int(challenge["cost"])
     problem = challenge["problem"]
@@ -63,6 +64,24 @@ def generatePostKeys():
     print("Key generated.")
     return { "alias" : alias, "secretKey" : sk.to_string().hex() }
 
+def runPostInterface(user, nodes, maxCost):
+    post = ""
+    while True:
+        post = input("Enter post text <=250 characters: ")
+        if validatePost(post):
+            break
+    privkey = ecdsa.SigningKey.from_string(bytes.fromhex(user["secretKey"]), curve=ecdsa.SECP256k1)
+    content = {
+                "message" : post,
+                "alias" : user["alias"],
+                "key" : privkey.get_verifying_key().to_string().hex(),
+                "signature" : privkey.sign(bytes(post + user["alias"], 'utf-8')).hex()
+              }
+    forwardPost(content, nodes, maxCost)
+
+
+def validatePost(post):
+    return len(post)<=250
 def validateAlias(alias):
     return alias.isalnum() and len(alias)<=25 and len(alias)>=3
         

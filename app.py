@@ -11,6 +11,8 @@ app = Flask(__name__)
 secret_key = generate_token(20)
 posts = {} 
 cost = int(config['POLICY']['cost'])
+forwardCost = int(config['POLICY']['forwardCost'])
+nodes = config['NETWORK']['nodes'].split(",")
 @app.route('/demo')
 def hashcash_demo():
     token = generate_token(10)
@@ -40,7 +42,7 @@ def post():
     if (not validatePost(content, config['POLICY']['maxLength'], None)):
         return "invalid"
     posts[sig] = content
-    forwardPost(content, config['NETWORK']['nodes'].split(","), int(config['POLICY']['forwardCost']))
+    forwardPost(content, nodes, forwardCost)
     return "success"
 
 @app.cli.command()
@@ -50,7 +52,8 @@ def genkeys():
 
 @app.cli.command()
 def post():
-    runPostInterface()
+    runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, forwardCost)
+
 if __name__ == '__main__': 
     app.make_shell_context()
     app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
