@@ -21,7 +21,6 @@ nodes = config['NETWORK']['nodes'].split(",")
 
 @app.route('/read')
 def main():
-    showPosts()
     text = "<h>Messages</h>\n"
     for post in posts:
         text += "<p>\n"
@@ -78,6 +77,7 @@ def forward():
 @app.cli.command()
 def showPosts():
     print(posts)
+
 if __name__ == '__main__': 
     scheduler.add_job(forward, 'interval', seconds=int(config['POLICY']['forwardInterval']))
     scheduler.start()
