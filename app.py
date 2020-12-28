@@ -21,7 +21,14 @@ def hashcash_demo():
 @app.route('/read')
 def main():
     showPosts()
-    return "good"
+    text = "<h>Messages</h>\n"
+    for post in posts:
+        text += "<p>\n"
+        text += "POST ID : " + posts[post]["signature"] + "\n"
+        text += "ALIAS : " + posts[post]["alias"] + "\n"
+        text += "MESSAGE : " + posts[post]["message"] +"\n"
+        text += "</p>"
+    return text
 
 @app.route('/challenge/<sig>', methods = ['POST'])
 def getPostChallenge(sig):
