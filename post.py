@@ -42,10 +42,10 @@ def forwardPost(content, nodes, maxCost):
                 print(content)
                 try:
                     r = requests.post(node + '/post', json=content)
-                    if (r.status_code == 200):
+                    if (r.content == "success"):
                         print("Post forwarded successfully to " + challenge)
                     else:
-                        print("Post not forwarded successfully, error code " + str(r.status_code))
+                        print("Post not forwarded successfully, error code " + r.content)
                 except:
                     print("could not forward to " + challenge)
             else: 
