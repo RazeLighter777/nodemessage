@@ -18,11 +18,11 @@ nodes = config['NETWORK']['nodes'].split(",")
 def hashcash_demo():
     token = generate_token(10)
     return str(solve_token(token, cost))
-@app.route('/')
+@app.route('/read')
 def main():
-    read()
+    showPosts()
     return "good"
-    
+
 @app.route('/challenge/<sig>', methods = ['POST'])
 def getPostChallenge(sig):
     if (sig in posts):
@@ -43,10 +43,10 @@ def remotePost():
     print(content)
     if sig in posts:
         return "exists"
-    if verify_token(problem, soln, cost) and hash(secret_key+problem)==token:
-        return "good"
-    if (not validatePost(content, config['POLICY']['maxLength'], None)):
-        return "invalid"
+    if not verify_token(problem, soln, cost) and hash(secret_key+problem)==token:
+        return "token validation failed"
+    if (not validatePost(content, int(config['POLICY']['maxLength']), None)):
+        return "invalid post"
     posts[sig] = content
     forwardPost(content, nodes, forwardCost)
     return "success"
@@ -60,13 +60,8 @@ def genkeys():
 def post():
     runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, forwardCost)
 
-@app.cli.command()
-def read():
-    for post in posts:
-        print("POST ID : " + post)
-        print("ALIAS : " + posts[post]["alias"])
-        print("MESSAGE : " + interpretPost(posts[post]["message"]))
-        print("")
+def showPosts():
+    print(posts)
 if __name__ == '__main__': 
     app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
     

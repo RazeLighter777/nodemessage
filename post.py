@@ -15,13 +15,14 @@ def test():
 print(str(test()))
 def validatePost(post, maxLen, notories):
     #Validate the signature
-    vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(post["key"], curve=ecdsa.SECP256k1))
-    try:
-        vk.verify(post["signature"], post["message"]+post["alias"])
+    vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(post["key"]), curve=ecdsa.SECP256k1)
+    try: 
+        vk.verify(bytes.fromhex(post["signature"]), bytes(post["message"]+post["alias"], 'utf-8'))
     except:
+        print("validation failed")
         return False
     #Validate length requirements.
-    if len(post["message"] > maxLen):
+    if len(post["message"]) > maxLen:
         return False
     #TODO Validate notories
     return True
@@ -81,6 +82,7 @@ def runPostInterface(user, nodes, maxCost):
         if validatePostText(post):
             break
     privkey = ecdsa.SigningKey.from_string(bytes.fromhex(user["secretKey"]), curve=ecdsa.SECP256k1)
+    print(privkey.get_verifying_key())
     content = {
                 "message" : post,
                 "alias" : user["alias"],
