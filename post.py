@@ -22,8 +22,8 @@ def forwardPost(content, nodes, maxCost):
             result = requests.post(node+'/challenge/'+content["signature"], timeout=5)
             if result.content != "exists":
                 challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
-        except:
-            print("Could not challenge node " + node)
+        except Exception as e:
+            print("Could not challenge node " + node + " exception " + str(e))
         print(challengesToSolve)
         for challenge in challengesToSolve:
             if int(challengesToSolve[challenge]["cost"]) <= maxCost:
