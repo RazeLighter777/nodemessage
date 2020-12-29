@@ -19,7 +19,7 @@ def forwardPost(content, nodes, maxCost):
     challengesToSolve = {}
     for node in nodes:
         try:    
-            result = requests.post(node+'/challenge/'+content["signature"])
+            result = requests.post(node+'/challenge/'+content["signature"], timeout=5)
             if result.content != "exists":
                 challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
         except:
@@ -30,7 +30,7 @@ def forwardPost(content, nodes, maxCost):
                 content.update(solveChallenge(challengesToSolve[challenge]))
                 print(content)
                 try:
-                    r = requests.post(node + '/post', json=content)
+                    r = requests.post(node + '/post', json=content, timeout=5)
                     if (r.content.decode('utf-8') == "success"):
                         print("Post forwarded successfully to " + challenge)
                     else:
