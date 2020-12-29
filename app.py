@@ -72,7 +72,7 @@ def post():
 def forward():
     print("Forwarding all posts . . .")
     for post in posts:
-        forwardPost(post, nodes, forwardCost)
+        forwardPost(posts[post], nodes, forwardCost)
 
 @app.cli.command()
 def showPosts():

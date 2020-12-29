@@ -1,6 +1,7 @@
 import ecdsa
 import json
 import requests
+import traceback
 from hashcash import solve_token
 def validatePost(post, maxLen, notories):
     #Validate the signature
@@ -18,12 +19,13 @@ def validatePost(post, maxLen, notories):
 def forwardPost(content, nodes, maxCost):
     challengesToSolve = {}
     for node in nodes:
-        try:    
+        try:
             result = requests.post(node+'/challenge/'+content["signature"], timeout=5)
-            if result.content != "exists":
+            if result.headers.get('content-type') == 'application/json':
                 challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
         except Exception as e:
             print("Could not challenge node " + node + " exception " + str(e))
+            print(traceback.format_exc())
         print(challengesToSolve)
         for challenge in challengesToSolve:
             if int(challengesToSolve[challenge]["cost"]) <= maxCost:
