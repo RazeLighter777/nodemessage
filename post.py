@@ -100,6 +100,8 @@ def runPostInterface(user, nodes, config):
 
         if not validatePostText(post):
             print("Your post does not meet the formatting requirements.")
+            continue
+        else:
             break
         
     privkey = rsa.PrivateKey.load_pkcs1(bytes.fromhex(user["secretKey"]))
