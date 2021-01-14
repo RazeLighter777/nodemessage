@@ -2,9 +2,11 @@ import rsa
 import json
 import requests
 import traceback
+import blowfish
+from flask import Flask, current_app
+import os
 from hashcash import solve_token
 from Crypto import Random
-from Crypto.Cipher import AES
 def validatePost(post, maxLen, notories):
     #Validate the signature
     pk = rsa.PublicKey.load_pkcs1(bytes.fromhex(post["key"]))
@@ -17,6 +19,10 @@ def validatePost(post, maxLen, notories):
     if len(post["message"]) > maxLen:
         return False
     #TODO Validate notories
+    #validate fields
+    for key in post.keys():
+        if not (key in ["key", "message", "problem", "soln", "token", "encrypted", "signature", "reply", "signkey", "alias"]):
+                return False
     return True
 def forwardPost(content, nodes, maxCost):
     challengesToSolve = {}
@@ -26,23 +32,21 @@ def forwardPost(content, nodes, maxCost):
             if result.headers.get('content-type') == 'application/json':
                 challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
         except Exception as e:
-            print("Could not challenge node " + node + " exception " + str(e))
-            print(traceback.format_exc())
-        print(challengesToSolve)
+            current_app.logger.info("Could not challenge node " + node + " exception " + str(e))
+            current_app.logger.info(traceback.format_exc())
         for challenge in challengesToSolve:
             if int(challengesToSolve[challenge]["cost"]) <= maxCost:
                 content.update(solveChallenge(challengesToSolve[challenge]))
-                print(content)
                 try:
                     r = requests.post(node + '/post', json=content, timeout=5)
                     if (r.content.decode('utf-8') == "success"):
                         print("Post forwarded successfully to " + challenge)
                     else:
-                        print("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
+                        current_app.logger.info("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
                 except:
-                    print("could not forward to " + challenge)
+                    current_app.logger.info("could not forward to " + challenge)
             else: 
-                print("Too lazy to solve challenge! Try upping forwardCost.")
+                current_app.logger.info("Too lazy to solve challenge! Try upping forwardCost.")
 
 def solveChallenge(challenge):
     cost = int(challenge["cost"])
@@ -68,40 +72,55 @@ def generatePostKeys():
     print("Key generated.")
     return { "alias" : alias, "secretKey" : privkey.save_pkcs1().hex(), "publicKey" : pubkey.save_pkcs1().hex()}
 
+def addKeyPair(user):
+    try:
+        ksi = json.loads(input("Paste your keystring here. Note that anyone else who also has this keystring will be able to read messages made with this key : "))
+    except:
+        print("Invalid keystring.")
+    user['keypairs'] = user['keypairs'] + ksi
 def runPostInterface(user, nodes, config):
     post = ""
     signkey = None
+    reply = None
+    blowkey = None
     while True:
         post = input("Enter post text <=250 characters: ")
         if config['CLIENT']['encrypted']=="ask":
             while True:
-                ans = input("Would you like to encrypt your post? y/n")
+                ans = input("Would you like to encrypt your post? y/n : ")
                 if ans=="y":
-                    prefix = input("Enter first couple characters of the post id you want to reply to : ")
-                    sig = keySigFromPrefix(prefix)
-                    if sig==None:
-                        input("You didn't enter a valid signature")
-                        continue
-                    else:
-                        break
+                    prefix = input("Enter first couple characters of the user id or the key id you want to reply to : ")
+                    reply = ""
+                    blowkey = os.urandom(52)
+                    signkey = rsa.encrypt(blowkey,rsa.PublicKey.load_pkcs1(bytes.fromhex(user["publicKey"])))    
+                    break
                 if ans=="n":
                     break
 
         if validatePostText(post):
+            print("Your post does not meet the formatting requirements.")
             break
+        
     privkey = rsa.PrivateKey.load_pkcs1(bytes.fromhex(user["secretKey"]))
     pubkey = rsa.PublicKey.load_pkcs1(bytes.fromhex(user["publicKey"]))
     content = {
                 "message" : post,
                 "alias" : user["alias"],
+                "encrypted" : "False",
                 "key" : pubkey.save_pkcs1().hex(),
-                "signature" : rsa.sign(bytes(post + user["alias"], 'utf-8'), privkey, 'SHA-256').hex()
               }
+    if blowkey != None:
+        content['reply'] = reply
+        content['encrypted'] = "True"
+        content['signkey'] = signkey.hex()
+        ciph = blowfish.Cipher(blowkey)
+        content['message'] = b"".join(ciph.encrypt_ecb_cts(content['message'].encode())).hex()
+    content["signature"] = rsa.sign(bytes(content['message'] + user["alias"], 'utf-8'), privkey, 'SHA-256').hex()
     forwardPost(content, nodes, int(config['POLICY']['forwardCost']))
 
 
 def validatePostText(post):
-    return len(post)<=250
+    return len(post)<=250 and len(post)>=8
 
 def validateAlias(alias):
     return alias.isalnum() and len(alias)<=25 and len(alias)>=3

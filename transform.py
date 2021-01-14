@@ -1,7 +1,7 @@
 import re
 
 def interpretPost(text):
-    text = str(text)
+    text = str(text).replace('\t', ' ')
     reactivators = ""
     startModifiers = ["[b]", "[u]", "[r]", "[d]", "[i]", "[sb]"]
     endModifiers = ["[~b]","[~u]", "[~r]", "[~d]", "[~i]", "[~sb]"]
@@ -30,7 +30,6 @@ def interpretPost(text):
     
     return text
                 
-print(interpretPost("[i]Reversed Text[~i]"))
 
 
 

@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from flask import request
+import time
 from hashcash import generate_token, solve_token, verify_token, hash
+from interface import tui
 from post import validatePost, forwardPost, generatePostKeys, runPostInterface
 import configparser
 import click
@@ -8,8 +10,11 @@ from transform import interpretPost
 import json
 from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
-
-
+from flask.cli import with_appcontext
+import threading
+import logging
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 config = configparser.ConfigParser()
 config.read('config.ini')
 app = Flask(__name__)
@@ -72,23 +77,26 @@ def genkeys():
     user = generatePostKeys()
     open(config['SERVER']['userFile'], "w").write(json.dumps(user))
 
-@app.cli.command()
+@click.command()
+@with_appcontext
 def post():
     runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, config)
-
+app.cli.add_command(post)
 def forward():
-    print("Forwarding all posts . . .")
     for post in posts:
         forwardPost(posts[post], nodes, forwardCost)
-
+def interface():
+    print("Welcome to nodemessage! Your node is up and running.")
+    tui(json.loads(open(config['SERVER']['userFile'], "r").read()),posts, nodes, config)
 @app.cli.command()
 def showPosts():
     print(posts)
-
-
-if __name__ == '__main__': 
+def runApp():
+    app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
+if __name__=='__main__':
     scheduler.add_job(forward, 'interval', seconds=int(config['POLICY']['forwardInterval']))
     scheduler.start()
-    app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
-
-
+    thread = threading.Thread(target = runApp)
+    thread.start()
+    time.sleep(1)
+    interface()
