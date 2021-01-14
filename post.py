@@ -1,13 +1,15 @@
-import ecdsa
+import rsa
 import json
 import requests
 import traceback
 from hashcash import solve_token
+from Crypto import Random
+from Crypto.Cipher import AES
 def validatePost(post, maxLen, notories):
     #Validate the signature
-    vk = ecdsa.VerifyingKey.from_string(bytes.fromhex(post["key"]), curve=ecdsa.SECP256k1)
+    pk = rsa.PublicKey.load_pkcs1(bytes.fromhex(post["key"]))
     try: 
-        vk.verify(bytes.fromhex(post["signature"]), bytes(post["message"]+post["alias"], 'utf-8'))
+        rsa.verify(bytes(post["message"]+post["alias"], 'utf-8'), bytes.fromhex(post['signature']), pk)
     except:
         print("validation failed")
         return False
@@ -61,34 +63,54 @@ def generatePostKeys():
             break
     #generate a key
     print("Generating key . . .")
-    sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
-    print("Key fingerprint : " + sk.get_verifying_key().to_string().hex())
+    (pubkey, privkey) = rsa.newkeys(2048)
+    print("Key fingerprint : " + pubkey.save_pkcs1().hex())
     print("Key generated.")
-    return { "alias" : alias, "secretKey" : sk.to_string().hex() }
+    return { "alias" : alias, "secretKey" : privkey.save_pkcs1().hex(), "publicKey" : pubkey.save_pkcs1().hex()}
 
-def runPostInterface(user, nodes, maxCost):
+def runPostInterface(user, nodes, config):
     post = ""
+    signkey = None
     while True:
         post = input("Enter post text <=250 characters: ")
+        if config['CLIENT']['encrypted']=="ask":
+            while True:
+                ans = input("Would you like to encrypt your post? y/n")
+                if ans=="y":
+                    prefix = input("Enter first couple characters of the post id you want to reply to : ")
+                    sig = keySigFromPrefix(prefix)
+                    if sig==None:
+                        input("You didn't enter a valid signature")
+                        continue
+                    else:
+                        break
+                if ans=="n":
+                    break
+
         if validatePostText(post):
             break
-    privkey = ecdsa.SigningKey.from_string(bytes.fromhex(user["secretKey"]), curve=ecdsa.SECP256k1)
+    privkey = rsa.PrivateKey.load_pkcs1(bytes.fromhex(user["secretKey"]))
+    pubkey = rsa.PublicKey.load_pkcs1(bytes.fromhex(user["publicKey"]))
     content = {
                 "message" : post,
                 "alias" : user["alias"],
-                "key" : privkey.get_verifying_key().to_string().hex(),
-                "signature" : privkey.sign(bytes(post + user["alias"], 'utf-8')).hex()
+                "key" : pubkey.save_pkcs1().hex(),
+                "signature" : rsa.sign(bytes(post + user["alias"], 'utf-8'), privkey, 'SHA-256').hex()
               }
-    forwardPost(content, nodes, maxCost)
+    forwardPost(content, nodes, int(config['POLICY']['forwardCost']))
 
 
 def validatePostText(post):
     return len(post)<=250
+
 def validateAlias(alias):
     return alias.isalnum() and len(alias)<=25 and len(alias)>=3
         
-
-
+def keyFromSigPrefix(prefix):
+    for post in posts:
+        if (post['signature'].startswith(prefix)):
+            return post['key']
+        return None
 
     
 

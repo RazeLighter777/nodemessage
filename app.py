@@ -7,11 +7,15 @@ import click
 from transform import interpretPost
 import json
 from apscheduler.schedulers.background import BackgroundScheduler
+import asyncio
+
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 app = Flask(__name__)
 scheduler = BackgroundScheduler()
+
+loop = asyncio.get_event_loop()
 
 secret_key = generate_token(20)
 posts = {} 
@@ -19,8 +23,11 @@ cost = int(config['POLICY']['cost'])
 forwardCost = int(config['POLICY']['forwardCost'])
 nodes = config['NETWORK']['nodes'].split(",")
 
+@app.route('/posts')
+def post():
+    return posts
 @app.route('/read')
-def main():
+def pretty():
     text = "<h>Messages</h>\n"
     for post in posts:
         text += "<p>\n"
@@ -67,7 +74,7 @@ def genkeys():
 
 @app.cli.command()
 def post():
-    runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, forwardCost)
+    runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, config)
 
 def forward():
     print("Forwarding all posts . . .")
@@ -78,8 +85,10 @@ def forward():
 def showPosts():
     print(posts)
 
+
 if __name__ == '__main__': 
     scheduler.add_job(forward, 'interval', seconds=int(config['POLICY']['forwardInterval']))
     scheduler.start()
     app.run(host = config['SERVER']['listen'], port = config['SERVER']['port'])
-    
+
+
