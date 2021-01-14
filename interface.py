@@ -41,7 +41,7 @@ def top(posts, user):
             displayPost(posts[post], user)
 
 def displayPost(post, user):
-    print("( " + post["signature"][0:10] + " ) [ " + user['key'][0:10] + ":" + post['alias'] + " ] " )
+    print("( " + post["signature"][0:10] + " ) [ " + post['key'][0:10] + ":" + post['alias'] + " ] " )
     if post["encrypted"] == "True":
         print("ENCRYPTED : " + post["message"])
     else:

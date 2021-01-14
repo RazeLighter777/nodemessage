@@ -25,28 +25,29 @@ def validatePost(post, maxLen, notories):
                 return False
     return True
 def forwardPost(content, nodes, maxCost):
-    challengesToSolve = {}
-    for node in nodes:
-        try:
-            result = requests.post(node+'/challenge/'+content["signature"], timeout=5)
-            if result.headers.get('content-type') == 'application/json':
-                challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
-        except Exception as e:
-            current_app.logger.info("Could not challenge node " + node + " exception " + str(e))
-            current_app.logger.info(traceback.format_exc())
-        for challenge in challengesToSolve:
-            if int(challengesToSolve[challenge]["cost"]) <= maxCost:
-                content.update(solveChallenge(challengesToSolve[challenge]))
-                try:
-                    r = requests.post(node + '/post', json=content, timeout=5)
-                    if (r.content.decode('utf-8') == "success"):
-                        print("Post forwarded successfully to " + challenge)
-                    else:
-                        current_app.logger.info("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
-                except:
-                    current_app.logger.info("could not forward to " + challenge)
-            else: 
-                current_app.logger.info("Too lazy to solve challenge! Try upping forwardCost.")
+    with current_app.app_context():
+        challengesToSolve = {}
+        for node in nodes:
+            try:
+                result = requests.post(node+'/challenge/'+content["signature"], timeout=5)
+                if result.headers.get('content-type') == 'application/json':
+                    challengesToSolve[node] = json.loads(result.content.decode('utf-8'))
+            except Exception as e:
+                current_app.logger.info("Could not challenge node " + node + " exception " + str(e))
+                current_app.logger.info(traceback.format_exc())
+            for challenge in challengesToSolve:
+                if int(challengesToSolve[challenge]["cost"]) <= maxCost:
+                    content.update(solveChallenge(challengesToSolve[challenge]))
+                    try:
+                        r = requests.post(node + '/post', json=content, timeout=5)
+                        if (r.content.decode('utf-8') == "success"):
+                            print("Post forwarded successfully to " + challenge)
+                        else:
+                            current_app.logger.info("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
+                    except:
+                        current_app.logger.info("could not forward to " + challenge)
+                else: 
+                    current_app.logger.info("Too lazy to solve challenge! Try upping forwardCost.")
 
 def solveChallenge(challenge):
     cost = int(challenge["cost"])
