@@ -97,7 +97,7 @@ def runPostInterface(user, nodes, config):
                 if ans=="n":
                     break
 
-        if validatePostText(post):
+        if not validatePostText(post):
             print("Your post does not meet the formatting requirements.")
             break
         
