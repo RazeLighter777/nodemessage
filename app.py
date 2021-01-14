@@ -83,8 +83,9 @@ def post():
     runPostInterface(json.loads(open(config['SERVER']['userFile'], "r").read()), nodes, config)
 app.cli.add_command(post)
 def forward():
-    for post in posts:
-        forwardPost(posts[post], nodes, forwardCost)
+    with app.app_context():
+        for post in posts:
+            forwardPost(posts[post], nodes, forwardCost)
 def interface():
     print("Welcome to nodemessage! Your node is up and running.")
     tui(json.loads(open(config['SERVER']['userFile'], "r").read()),posts, nodes, config)
@@ -99,4 +100,5 @@ if __name__=='__main__':
     thread = threading.Thread(target = runApp)
     thread.start()
     time.sleep(1)
-    interface()
+    with app.app_context():
+        interface()
