@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify
 from flask import request
 import time
 from hashcash import generate_token, solve_token, verify_token, hash
-from interface import tui
-from post import validatePost, forwardPost, generatePostKeys, runPostInterface
+from interface import tui, runPostInterface, generatePostKeys
+from post import validatePost, forwardPost
 import configparser
 import click
 from transform import interpretPost

@@ -1,7 +1,7 @@
 import hashlib, random, itertools
 
 def hash(s):
-    sha1 = hashlib.sha1()
+    sha1 = hashlib.sha256()
     sha1.update(s.encode())
     return sha1.hexdigest()
 

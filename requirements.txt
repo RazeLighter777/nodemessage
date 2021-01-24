@@ -3,3 +3,4 @@ ecdsa==0.16.1
 APScheduler==3.6.3 
 rsa==4.7
 blowfish==0.6.1
+requests==2.25.1
