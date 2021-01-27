@@ -61,7 +61,6 @@ def remotePost():
     soln = content['soln']
     token = content['token']
     sig = content['signature']
-    print(content)
     if sig in posts:
         return "exists"
     if not verify_token(problem, soln, cost) and hash(secret_key+problem)==token:

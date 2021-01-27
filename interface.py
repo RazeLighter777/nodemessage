@@ -1,11 +1,11 @@
+import json
 import os
 
-import blowfish
 import rsa
 from Crypto.Cipher import AES
 
 import hashcash
-from post import validatePostText, forwardPost, validateAlias
+from post import validatePostText, forwardPost, validateAlias, keyStringFromSigPrefix
 from transform import interpretPost
 from user import genPasswordHash, createUserSession, getSecretKey
 
@@ -24,6 +24,9 @@ def tui(user, posts, nodes, config):
     while True:
         command = input('$[' + user['alias'] + ']>  ')
         tokens  = command.split(' ')
+        pos = []
+        if command == "?":
+            help()
         if len(tokens) > 0:
             if (tokens[0] == 'alias'):
                 print('Your current alias is ' + user['alias'])
@@ -34,7 +37,15 @@ def tui(user, posts, nodes, config):
             elif (tokens[0] == 'nodes'):
                 print(nodes)
             elif (tokens[0] == 'post'):
-                runPostInterface(user, userSession, nodes, config)
+                runPostInterface(user, userSession, nodes, config, posts)
+            elif (tokens[0] == 'top'):
+                top(posts, user, userSession)
+            elif (tokens[0].startswith("@")):
+                ps = getPostByPrefix(tokens[0][1:], posts)
+                print(ps)
+                if (ps != None):
+                    pos = pos + [tokens[0][1:]]
+                print(pos)
             elif (tokens[0] == 'top'):
                 top(posts, user, userSession)
             else:
@@ -56,45 +67,62 @@ def help():
     print("? : display this help")
 def top(posts, user, userSession):
     for post in posts:
-        if not "reply" in posts[post]:
-            displayPost(posts[post], user, userSession)
+        displayPost(posts[post], posts, user, userSession)
 
-def displayPost(post, user, userSession, password):
-    print("( " + post["signature"][0:10] + " ) [ " + post['key'][0:10] + ":" + post['alias'] + " ] " )
+def displayPost(post, posts, user, userSession):
+    print("( " + post["signature"][0:10] + " ) [ " + hashcash.hash(post['key'])[0:10] + "@" + post['alias'] + " ] R:" + str(getNumberOfReplies(posts, post["signature"])) + " > ")
     if post["encrypted"] == "True":
-        print("ENCRYPTED : " + decrypt(password, post["message"], post["nonce"], post["tag"]))
+        print("ENCRYPTED : " + str(getEncryptedPostMessage(user, userSession, post)))
     else:
         print(interpretPost(post["message"]))
 
 def decrypt(password, ciphertext, nonce, tag):
-    ciph = AES.new(bytes.fromhex(hashcash.hash(password)), AES.MODE_EAX, nonce=nonce)
+    ciph = AES.new(bytes.fromhex(hashcash.hash(password)), AES.MODE_EAX, nonce=bytes.fromhex(nonce))
     try:
-        ciph.verify(tag)
-        plaintext = ciph.decrypt(ciphertext)
+        #ciph.verify(bytes.fromhex(tag))
+        plaintext = ciph.decrypt(bytes.fromhex(ciphertext))
         return plaintext
     except:
         return None
-def getEncryptedPostMessage(user, userSession, post, decryptedSecretKey):
-    nonce = post["nonce"]
-    tag = post["tag"]
-    secretKey = rsa.PublicKey.load_pkcs1(bytes.fromhex(userSession["decryptedSecretKey"]))
-    cipher = AES.new(bytes.fromhex(rsa.decrypt(bytes.fromhex(post["signkey"])),secretKey), AES.MODE_EAX)
+def getEncryptedPostMessage(user, userSession, post):
+    mnonce = bytes.fromhex(post["nonce"])
+    tag = bytes.fromhex(post["tag"])
+    #TODO Replace this secret key with the right one
+    secretKey = userSession["decryptedSecretKey"]
+    cipher = None
+    try:
+        cipher = AES.new(rsa.decrypt(bytearray.fromhex(post["signkey"]), secretKey), AES.MODE_EAX, nonce = mnonce)
+    #except:
+    #    return "This post has a malformed signing key. "
+    #try:
+    #    cipher.verify(tag)
+    except:
+        return "This message has jacked up AES encryption."
+    return cipher.decrypt(bytearray.fromhex(post["message"])).decode('utf-8')
 
-def runPostInterface(user, userSession, nodes, config):
+def runPostInterface(user, userSession, nodes, config, posts):
     post = ""
     signkey = None
     reply = None
     blowkey = None
+    tag = None
     while True:
         post = input("Enter post text <=250 characters: ")
         if config['CLIENT']['encrypted']=="ask":
             while True:
                 ans = input("Would you like to encrypt your post? y/n : ")
                 if ans=="y":
-                    prefix = input("Enter first couple characters of the user id or the key id you want to reply to : ")
-                    reply = ""
+                    while True:
+                        prefix = input("Enter first couple characters of the user id (@) or the key id ($) you want to reply to : ")
+                        if prefix.startswith("@"):
+                            reply = keyStringFromSigPrefix(prefix[1:], posts)
+                        elif prefix.startswith("$"):
+                            pass
+                        if reply != None:
+                            break
+
                     blowkey = os.urandom(32)
-                    signkey = rsa.encrypt(blowkey,rsa.PublicKey.load_pkcs1(bytes.fromhex(user["publicKey"])))
+                    signkey = rsa.encrypt(blowkey,rsa.PublicKey.load_pkcs1(bytes.fromhex(reply)))
                     break
                 if ans=="n":
                     break
@@ -120,10 +148,10 @@ def runPostInterface(user, userSession, nodes, config):
         ciph = AES.new(blowkey, AES.MODE_EAX)
         nonce = ciph.nonce
         message, tag = ciph.encrypt_and_digest(post.encode('utf-8'))
-        content["nonce"] = nonce
-        content["tag"] = tag
-        content['message'] = message
-    content["signature"] = rsa.sign((content['message'].hex() + user["alias"]).encode('utf-8'), privkey, 'SHA-256').hex()
+        content["nonce"] = nonce.hex()
+        content["tag"] = tag.hex()
+        content['message'] = message.hex()
+    content["signature"] = rsa.sign((str(content['message']) + user["alias"]).encode('utf-8'), privkey, 'SHA-256').hex()
     forwardPost(content, nodes, int(config['POLICY']['forwardCost']))
 
 
@@ -150,12 +178,48 @@ def generatePostKeys():
         blowkey = password
         password = genPasswordHash(password)
         if (len(blowkey)<=56):
-            print(hashcash.hash(blowkey))
             cipher = AES.new(bytes.fromhex(hashcash.hash(blowkey)), AES.MODE_EAX)
             nonce = cipher.nonce
             ciphertext, tag = cipher.encrypt_and_digest(privkey.save_pkcs1().hex().encode('utf-8'))
             break
 
     userkeys = {}
+    return { "keypairs": {}, "nonce" : nonce.hex(), "tag" : tag.hex(), "userkeys" : userkeys, "passwordHash" : password, "alias" : alias, "secretKey" : ciphertext.hex(), "publicKey" : pubkey.save_pkcs1().hex()}
 
-    return { "nonce" : nonce.hex(), "tag" : tag.hex(), "userkeys" : userkeys, "passwordHash" : password, "alias" : alias, "secretKey" : ciphertext.hex(), "publicKey" : pubkey.save_pkcs1().hex()}
+def getPostByPrefix(prefix, posts):
+    for post in posts:
+        if posts[post]["signature"].startswith(prefix):
+            return posts[post]
+def getReplies(posts, query):
+    replies = []
+    for post in posts:
+        print("hit0")
+        if "reply" in posts[post]:
+            print("hit")
+            if (posts[post]["reply"])[1:].startswith(query):
+                replies = replies + posts[post]
+    return replies
+def getNumberOfReplies(posts, query):
+    count = 0
+    for post in posts:
+        if "reply" in posts[post]:
+            if posts[post]["reply"][1:].startswith(query):
+                count = count + 1
+    return count
+#def displayPost(post, posts, user):
+#    print("( @" + post["signature"][0:10] + " )"+ "R:" + str(getNumberOfReplies(posts, post["signature"]))+  " [ #" + hashcash.hash(post['key'])[0:10] + ":" + post['alias'] + " ] " )
+def top(posts, user, userSession):
+    for post in posts:
+        displayPost(posts[post], posts, user, userSession)
+        printDivider()
+
+def printDivider():
+    print("---------------------------------")
+
+
+def addKeyPair(user):
+    try:
+        ksi = json.loads(input("Paste your keystring here. Note that anyone else who also has this keystring will be able to read messages made with this key : "))
+    except:
+        print("Invalid keystring.")
+    user['keypairs'] = user['keypairs'] + ksi

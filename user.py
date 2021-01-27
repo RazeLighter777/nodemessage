@@ -34,7 +34,6 @@ def getSecretKey(userSession):
     if verifyPassword(userSession["password"], passwordHash):
         ciph = AES.new(bytes.fromhex(hashcash.hash(userSession["password"])), AES.MODE_EAX, nonce=bytes.fromhex(userSession["user"]["nonce"]))
         plain = ciph.decrypt(bytes.fromhex(userSession["user"]["secretKey"]))
-        print(plain)
         secretKey = rsa.PrivateKey.load_pkcs1(bytes.fromhex(plain.decode('utf-8')))
         userSession["decryptedSecretKey"] = secretKey
         try:

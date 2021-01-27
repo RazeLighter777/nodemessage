@@ -2,7 +2,6 @@ import rsa
 import json
 import requests
 import traceback
-from Crypto.Cipher import AES
 from flask import current_app
 
 from hashcash import solve_token
@@ -12,7 +11,7 @@ def validatePost(post, maxLen, notories):
     #Validate the signature
     pk = rsa.PublicKey.load_pkcs1(bytes.fromhex(post["key"]))
     try: 
-        rsa.verify(bytes(post["message"].encode('utf-8').hex() + post["alias"], 'utf-8'), bytes.fromhex(post['signature']), pk)
+        rsa.verify(bytes(post["message"]+ post["alias"], 'utf-8'), bytes.fromhex(post['signature']), pk)
     except:
         print("validation failed")
         return False
@@ -22,7 +21,7 @@ def validatePost(post, maxLen, notories):
     #TODO Validate notories
     #validate fields
     for key in post.keys():
-        if not (key in ["key", "nonce","tag" "message", "problem", "soln", "token", "encrypted", "signature", "reply", "signkey", "alias"]):
+        if not (key in ["key", "nonce","tag", "message", "problem", "soln", "token", "encrypted", "signature", "reply", "signkey", "alias"]):
                 return False
     return True
 def forwardPost(content, nodes, maxCost):
@@ -45,8 +44,10 @@ def forwardPost(content, nodes, maxCost):
                             print("Post forwarded successfully to " + challenge)
                         else:
                             current_app.logger.info("Post not forwarded successfully, error code " + r.content.decode('utf-8'))
-                    except:
+                    except Exception as e:
                         current_app.logger.info("could not forward to " + challenge)
+                        print(str(e))
+                        print(traceback.format_exc())
                 else: 
                     current_app.logger.info("Too lazy to solve challenge! Try upping forwardCost.")
 
@@ -61,25 +62,19 @@ def solveChallenge(challenge):
            }
 
 
-def addKeyPair(user):
-    try:
-        ksi = json.loads(input("Paste your keystring here. Note that anyone else who also has this keystring will be able to read messages made with this key : "))
-    except:
-        print("Invalid keystring.")
-    user['keypairs'] = user['keypairs'] + ksi
-
-
 def validatePostText(post):
     return len(post)<=250 and len(post)>=8
 
 def validateAlias(alias):
     return alias.isalnum() and len(alias)<=25 and len(alias)>=3
         
-def keyFromSigPrefix(prefix, posts):
+def keyStringFromSigPrefix(prefix, posts):
     for post in posts:
-        if (post['signature'].startswith(prefix)):
-            return post['key']
+        if (posts[post]['signature'].startswith(prefix)):
+            return posts[post]['key']
         return None
+
+
 
     
 
