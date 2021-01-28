@@ -3,6 +3,7 @@ from calendar import calendar
 from datetime import time
 
 import blowfish
+from Crypto.Protocol.KDF import scrypt
 import rsa
 from Crypto.Cipher import AES
 
@@ -11,7 +12,8 @@ import hashcash
 
 def genPasswordHash(password):
     salt = hashcash.hash(str(os.urandom(52)))
-    return salt + ":" + hashcash.hash(salt + password)
+    key = scrypt(password, salt, 32, N=2**14, r=8, p=1).hex()
+    return f"{salt}:{key}"
 
 def createUserSession(user, password, expireTime):
     userSession =  {"user" : user, "expireTime" : expireTime}
@@ -23,7 +25,7 @@ def createUserSession(user, password, expireTime):
 
 def verifyPassword(password, passwordHash):
     tokens = passwordHash.split(":")
-    if hashcash.hash(tokens[0]+password)==tokens[1]:
+    if tokens[1]==scrypt(password, tokens[0],32, N=2**14, r=8,p=1).hex():
         return True
     return False
 

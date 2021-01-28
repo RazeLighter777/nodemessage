@@ -5,6 +5,7 @@ import rsa
 from Crypto.Cipher import AES
 
 import hashcash
+import getpass
 from post import validatePostText, forwardPost, validateAlias, keyStringFromSigPrefix
 from transform import interpretPost
 from user import genPasswordHash, createUserSession, getSecretKey
@@ -14,17 +15,17 @@ def tui(user, posts, nodes, config):
     print("Welcome " + user['alias'] + "!")
     userSession = ""
     while True:
-        password = input("Enter your password : ")
+        password = input("Enter password : ")
         userSession = createUserSession(user, password, 1000000000000000000000000000000000)
         if userSession != None:
             print("Password Accepted.")
             break
         else:
-            print("Password Invalid")
+            print("Password Invalid.")
+    pos = []
     while True:
         command = input('$[' + user['alias'] + ']>  ')
         tokens  = command.split(' ')
-        pos = []
         if command == "?":
             help()
         if len(tokens) > 0:
@@ -42,10 +43,12 @@ def tui(user, posts, nodes, config):
                 top(posts, user, userSession)
             elif (tokens[0].startswith("@")):
                 ps = getPostByPrefix(tokens[0][1:], posts)
-                print(ps)
                 if (ps != None):
-                    pos = pos + [tokens[0][1:]]
-                print(pos)
+                    pos.append(ps["signature"])
+            elif (tokens[0] == 'ls'):
+                ls(pos, posts, user, userSession)
+            elif (tokens[0] == 'back'):
+                back(pos)
             elif (tokens[0] == 'top'):
                 top(posts, user, userSession)
             else:
@@ -53,6 +56,25 @@ def tui(user, posts, nodes, config):
                 help()
         else:
             continue
+
+
+def back(pos):
+    if len(pos) != 0:
+        pos.pop()
+    else:
+        print("Already at top!")
+
+
+def ls(pos, posts, user, userSession):
+    if len(pos) == 0:
+        top(posts, user, userSession)
+        return
+    rootPost = getPostSignatureFromPostPrefix(posts, pos[-1])
+    displayPost(posts[rootPost], posts, user, userSession)
+    printDivider()
+    for post in getReplies(posts, rootPost):
+        displayPost(post, posts, user, userSession)
+
 
 def help():
     print("Valid commands : ")
@@ -67,10 +89,11 @@ def help():
     print("? : display this help")
 def top(posts, user, userSession):
     for post in posts:
-        displayPost(posts[post], posts, user, userSession)
+        if "reply" not in posts[post]:
+            displayPost(posts[post], posts, user, userSession)
 
 def displayPost(post, posts, user, userSession):
-    print("( " + post["signature"][0:10] + " ) [ " + hashcash.hash(post['key'])[0:10] + "@" + post['alias'] + " ] R:" + str(getNumberOfReplies(posts, post["signature"])) + " > ")
+    print("( @" + post["signature"][0:10] + " ) [ #" + hashcash.hash(post['key'])[0:10] + ":" + post['alias'] + " ] R:" + str(getNumberOfReplies(posts, post["signature"])) + " > ")
     if post["encrypted"] == "True":
         print("ENCRYPTED : " + str(getEncryptedPostMessage(user, userSession, post)))
     else:
@@ -100,6 +123,12 @@ def getEncryptedPostMessage(user, userSession, post):
         return "This message has jacked up AES encryption."
     return cipher.decrypt(bytearray.fromhex(post["message"])).decode('utf-8')
 
+
+def getPostSignatureFromPostPrefix(posts, prefix):
+    for post in posts:
+        if post.startswith(prefix):
+            return post
+
 def runPostInterface(user, userSession, nodes, config, posts):
     post = ""
     signkey = None
@@ -113,16 +142,20 @@ def runPostInterface(user, userSession, nodes, config, posts):
                 ans = input("Would you like to encrypt your post? y/n : ")
                 if ans=="y":
                     while True:
-                        prefix = input("Enter first couple characters of the user id (@) or the key id ($) you want to reply to : ")
+                        prefix = input("Enter first couple characters of the post id (@) or the key id ($) you want to reply to : ")
                         if prefix.startswith("@"):
-                            reply = keyStringFromSigPrefix(prefix[1:], posts)
+                            reply = "@" + getPostSignatureFromPostPrefix(posts, prefix[1:])
                         elif prefix.startswith("$"):
+                            #TODO Add private keys
+                            pass
+                        elif prefix.startswith("#"):
+                            #TODO Add user keys
                             pass
                         if reply != None:
                             break
 
                     blowkey = os.urandom(32)
-                    signkey = rsa.encrypt(blowkey,rsa.PublicKey.load_pkcs1(bytes.fromhex(reply)))
+                    signkey = rsa.encrypt(blowkey,rsa.PublicKey.load_pkcs1(bytes.fromhex(keyStringFromSigPrefix(prefix[1:], posts))))
                     break
                 if ans=="n":
                     break
@@ -193,25 +226,24 @@ def getPostByPrefix(prefix, posts):
 def getReplies(posts, query):
     replies = []
     for post in posts:
-        print("hit0")
         if "reply" in posts[post]:
-            print("hit")
             if (posts[post]["reply"])[1:].startswith(query):
-                replies = replies + posts[post]
+                replies.append( posts[post])
     return replies
 def getNumberOfReplies(posts, query):
     count = 0
     for post in posts:
         if "reply" in posts[post]:
-            if posts[post]["reply"][1:].startswith(query):
+            if posts[post]["reply"].startswith("@") and posts[post]["reply"][1:].startswith(query):
                 count = count + 1
     return count
 #def displayPost(post, posts, user):
 #    print("( @" + post["signature"][0:10] + " )"+ "R:" + str(getNumberOfReplies(posts, post["signature"]))+  " [ #" + hashcash.hash(post['key'])[0:10] + ":" + post['alias'] + " ] " )
 def top(posts, user, userSession):
     for post in posts:
-        displayPost(posts[post], posts, user, userSession)
-        printDivider()
+        if "reply" not in posts[post]:
+            displayPost(posts[post], posts, user, userSession)
+            printDivider()
 
 def printDivider():
     print("---------------------------------")
@@ -222,4 +254,5 @@ def addKeyPair(user):
         ksi = json.loads(input("Paste your keystring here. Note that anyone else who also has this keystring will be able to read messages made with this key : "))
     except:
         print("Invalid keystring.")
+        return
     user['keypairs'] = user['keypairs'] + ksi
