@@ -52,7 +52,7 @@ def getPostChallenge(sig):
     return {
                 "problem" : problem,
                 "cost" : cost,
-                "token" : hash(secret_key + problem)
+                "token" : hash(secret_key +  sig + problem)
            }
 @app.route('/post',methods = ['POST'])
 def remotePost():
@@ -63,7 +63,7 @@ def remotePost():
     sig = content['signature']
     if sig in posts:
         return "exists"
-    if not verify_token(problem, soln, cost) and hash(secret_key+problem)==token:
+    if not verify_token(problem, soln, cost) and hash(secret_key+sig+problem)==token:
         return "token validation failed"
     if (not validatePost(content, int(config['POLICY']['maxLength']), None)):
         return "invalid post"
